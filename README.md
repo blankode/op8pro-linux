@@ -2,7 +2,7 @@
 
 A device-specific migration guide and battery/charger development log for the OnePlus 8 Pro running native Nura Linux (formerly postmarketOS), without Android or Termux.
 
-> **Development status (2026-11-26):** Native Linux boots and USB/Wi-Fi SSH work on the tested IN2023. The custom power diagnostic kernel boots and exposes battery measurements, but it does **not** yet charge the battery reliably; charging is deliberately inhibited. This is not a finished UPS or charging fix. Do not use the experimental kernel unattended or leave the device connected indefinitely.
+> **Development status (2026-11-26, latest tested build):** Native Linux boots with USB/Wi-Fi SSH. The experimental UPS diagnostic kernel `7.2.0-oneplus-server-ups-diag` boots temporarily, detects valid USB input, and reports battery, internal fuel-gauge and auxiliary sensor measurements. The requested charging policy is 1 A maximum, start below 90%, stop at 95%, USB primary and battery backup. Charging authorization and enable remain 0 in the latest test. This is not yet a verified charger or UPS solution. Do not use the experimental kernel unattended.
 
 ## Tested hardware and software
 
@@ -14,7 +14,7 @@ A device-specific migration guide and battery/charger development log for the On
 | Starting firmware | Android 13 |
 | Linux | Nura console image, release v2026.11.24 |
 | Base kernel | sm8250-7.2.0_git20261010 |
-| Experimental kernel | 7.2.0-oneplus-server-power-diag |
+| Experimental kernel | 7.2.0-oneplus-server-ups-diag |
 
 This is an independent extension of [darknagel's unofficial OnePlus 8 Pro Nura port](https://github.com/darknagel/oneplus-instantnoodlep-nura-unofficial). All credit for the native Linux port and base kernel patches belongs to their respective upstream authors.
 
@@ -97,7 +97,7 @@ The upstream release reports ordinary charging support on its tested devices. Ou
 
 See [battery driver development and kernel build notes](docs/battery.md) for the observed behavior, source baseline, local patch names, build commands, test and rollback guidance.
 
-The exact custom driver patch is not included in this initial documentation commit: the original local source has not been recovered into this repository. Do not treat a description of a patch as its implementation.
+The latest documented development includes stock BATIF status, a charge-session timeout, five auxiliary ADC sensor channels and a separate BQ27541 internal-temperature guard. The exact local patch sources have not yet been recovered into this repository; see [patch inventory](patches/README.md). This repository does not yet provide a reproducible custom kernel or a verified charging implementation.
 
 ## Scope
 
