@@ -1,47 +1,57 @@
-# Local kernel patches
+# Local kernel patch inventory
 
-This directory is reserved for the reviewed, original kernel patch files.
-No custom charger implementation is included yet.
+Latest tested kernel: `7.2.0-oneplus-server-ups-diag` (2026-11-26).
 
-The development session produced:
-- oneplus-charging-diagnostic.patch
-- oneplus-ups-driver-diagnostic.patch
+The following patch names are recorded in the development history. **The actual
+patch contents are not yet present in this repository.** The list is not a
+verified application sequence.
 
-Recover the originals from the development host. The first patch was saved
-under `C:\OnePlus-Linux\battery-fix\` during development. The second was
-generated later; its local download location has not been confirmed.
+| Artifact | Role |
+| --- | --- |
+| oneplus-charging-diagnostic.patch | Earlier charger diagnostic prototype |
+| oneplus-ups-driver-diagnostic.patch | UPS diagnostic iteration |
+| oneplus-ups-stock-batif.patch | Stock battery-interface status |
+| oneplus-ups-charge-timeout.patch | Charge-session timeout |
+| oneplus-aux-thermal-guard.patch | Auxiliary temperature/voltage sensor guard |
+| oneplus-bq-internal-guard.patch | Separate BQ27541 internal-temperature guard |
 
-On WSL, assuming the original files are in that Windows directory:
+The last four changes were compiled during development; the integrated kernel
+booted with charging authorization and enable still disabled. See
+[latest validation results](../docs/battery.md).
 
-```sh
-cd ~
-git clone https://github.com/blankode/op8pro-linux.git
-cd op8pro-linux
-src=/mnt/c/OnePlus-Linux/battery-fix
-find "$src" -maxdepth 1 -type f -name '*.patch' -print
-```
+## Recover the current source
 
-Inspect the full patch contents and verify the source baseline before copying.
-Only include reviewed driver/DTS changes. Do not include any unrelated files.
+Prefer a reviewed diff of the latest integrated source against the exact clean
+upstream-patched baseline. That avoids accidentally stacking superseded
+diagnostic prototypes. Record the baseline SHA, changed source files, kernel
+configuration, and reproducible build procedure. Preserve source licenses.
 
-```sh
-cp "$src/oneplus-charging-diagnostic.patch" patches/
-git add -- patches/oneplus-charging-diagnostic.patch
-git diff --cached
-```
-
-After review, commit and push:
+On the original WSL development host, search the known build/download locations:
 
 ```sh
-git commit -m "Add original experimental OnePlus charger diagnostic patch"
-git push origin main
+find ~/oneplus-build /mnt/c/OnePlus-Linux/battery-fix \
+  -type f -name 'oneplus-*.patch' -print 2>/dev/null
 ```
 
-Repeat for the later patch only after confirming its provenance and whether it
-supersedes or applies on top of the first. Record the exact base commit,
-application order and test results in [the battery notes](../docs/battery.md).
-Preserve existing source licenses and copyright notices.
+For a Git source tree, inspect the current changes:
 
-Do not upload private service migrations, boot/rootfs images, firmware dumps,
-or a full development tree. The custom charging code remains experimental and
-must not be presented as a verified charging solution.
+```sh
+git status --short
+git diff --stat
+git diff
+git log -5 --oneline
+```
+
+These commands do not capture already committed changes by themselves; compare
+the current revision and working tree with the verified upstream-patched base.
+Review and export only relevant kernel driver, DTS and configuration changes.
+Check the exported patch on a clean copy of that baseline before publishing.
+
+Clone this repository, copy only the reviewed patch files into `patches/`,
+stage those files by name, inspect the staged diff and commit/push. Do not
+stage a whole phone backup or development directory.
+
+The charging-enabled implementation remains unverified. Do not publish
+guessed driver code or distribute the diagnostic build as a working UPS fix.
+No personal services, credentials, device firmware, backups or application
+data belong here.
