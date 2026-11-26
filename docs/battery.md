@@ -1,29 +1,45 @@
 # Battery and charging development
 
-## Status — 2026-11-26
+## Current status — 2026-11-26
 
-Native Nura Linux was successfully installed on an IN2023. The experimental kernel
-`7.2.0-oneplus-server-power-diag` booted. Battery voltage, state of charge, current and
-temperature were readable. Battery charging was **not** demonstrated: charging remained
-inhibited, including with a USB power source connected.
+The latest integrated diagnostic kernel, `7.2.0-oneplus-server-ups-diag`, compiled and booted temporarily on the IN2023. The build produced 614 modules and an approximately 168 MB module archive. USB input detection, battery telemetry and the auxiliary thermal/voltage sensor reporting passed the initial checks. Physical battery charging and automatic UPS failover have **not** been validated.
 
-| Test | Observed |
+### Latest observed measurements
+
+| Measurement | Observed |
 | --- | --- |
-| On battery | 42%, 3.806 V, -458 mA, battery temperature 24.5 °C |
-| USB disconnected | Power path status 2; USB present 0; input valid 0 |
-| USB connected | Power path status 149 (0x95); USB present 1; input valid 1 |
-| Charger state | 7 |
+| Kernel | 7.2.0-oneplus-server-ups-diag |
+| USB input | Present, valid |
+| Battery voltage | 3,784,000 µV (3.784 V) |
+| Battery current | 54,000 µA (54 mA reported; sign convention requires verification) |
+| Battery pack temperature | 24.5 °C; subsequent observations 24.5–24.6 °C |
+| BQ27541 internal temperature | 30.6 °C |
+| Battery health | Good (driver report) |
+| Auxiliary sample age | 2 s |
+| Auxiliary valid mask | 0x1f |
+| Auxiliary fault mask | 0x00 |
+| PM8150 skin sensor | 34.558 °C |
+| PM8150B skin sensor | 33.333 °C |
+| MSM skin sensor | 36.406 °C |
+| USB connector sensor | 25.275 °C |
+| VBAT sense ADC | 3,793,077 µV |
+| Charge requested | 1 |
+| Requested charging current | 1,000,000 µA |
+| Charge authorized | 0 |
 | Charging enabled | 0 |
-| Reported faults | 0 |
-| After over six hours connected | 35% battery, current reported as 0 µA, charging enabled 0 |
 
-The raw state values are recorded for comparison, not decoded as proof that any
-particular hardware path is safe or active. A valid USB input is not proof of battery
-charging. A zero current reading is not proof of a fully functional power-path/UPS mode.
+The voltage readings differ by approximately 9.1 mV. These are observations from a single diagnostic run, not evidence of sustained charging or safe unattended operation. The capacity reading was not sufficiently clear in the captured output and is omitted.
 
-Do not leave an experimental charging kernel running unattended. Stop testing on
-unexpected voltage, temperature, swelling or unstable behavior. Do not bypass the
-battery protection hardware, force charger register writes or disable thermal protection.
+### Target UPS behavior (not yet validated)
+
+- USB power is primary; the battery acts as backup when input power disappears.
+- Request charging below 90% and stop at 95%, with a maximum requested current of 1 A.
+- Target a controlled shutdown at 10% battery when external power is unavailable.
+- Keep hardware protection, independent temperature checks and fail-closed authorization; validate actual charging and power transitions before deployment.
+
+The older 500 mA / 70–80% experimental targets are superseded as policy goals. A requested current is not proof of physical current delivered to the pack. No charging authorization or enable was observed in the latest run.
+
+Do not run the experimental charging kernel unattended. Stop testing on unexpected voltage, temperature, swelling or unstable behavior. Do not bypass battery protection, force charger register writes or disable thermal protection.
 
 ## Source baseline
 
@@ -37,27 +53,29 @@ on top of that port, not a replacement for its full driver stack.
 
 ## Local modifications recorded during development
 
-| File | Purpose |
+| Component | Purpose |
 | --- | --- |
-| `drivers/power/supply/qcom_pm8150b_charger.c` | Diagnostic charger policy and observability |
-| `arch/arm64/boot/dts/qcom/sm8250-oneplus-instantnoodlep.dts` | Fuel-gauge compatible changed from `ti,bq27411` to `ti,bq27541`; existing charger-to-gauge reference retained |
-| ADC device-tree configuration | Investigated battery voltage measurement through `channel@84` / `vbat_sns`; exact final diff needs source verification |
+| `drivers/power/supply/qcom_pm8150b_charger.c` | Diagnostic UPS policy, charger state and observability |
+| BQ27541 fuel-gauge driver | Separate pack and internal temperature reporting; internal temperature register 0x28 |
+| `arch/arm64/boot/dts/qcom/sm8250-oneplus-instantnoodlep.dts` | Fuel-gauge compatible changed from `ti,bq27411` to `ti,bq27541`; charger-to-gauge reference retained |
+| ADC/device-tree configuration | Auxiliary thermal channels and battery-voltage sensing; exact final diff requires source verification |
 
-The diagnostic patch was designed with a requested 4.10 V float target, 500 mA
-current limit, 80% stop / 70% resume thresholds and 10–40 °C charging window.
-The recorded policy inhibited charging at boot, with invalid sensors or programming
-errors, retained the watchdog, and removed a forced restart path. These are
-design intentions, not certified battery limits or verified register values.
+### Recorded diagnostic patch progression
 
-Original artifacts recorded in the development session:
+| Patch | Development status / purpose |
+| --- | --- |
+| `oneplus-charging-diagnostic.patch` | Early charger diagnostics; historical |
+| `oneplus-ups-driver-diagnostic.patch` | UPS diagnostic iteration |
+| `oneplus-ups-stock-batif.patch` | Stock BATIF status and battery terminal/thermistor-or-ID missing indicators; compiled |
+| `oneplus-ups-charge-timeout.patch` | 10-hour session timeout using monotonic boot time; compiled |
+| `oneplus-aux-thermal-guard.patch` | Five auxiliary channels: three skin sensors, USB connector and VBAT ADC; object and DTB compiled |
+| `oneplus-bq-internal-guard.patch` | Internal gauge temperature guard; object compiled |
 
-- `oneplus-charging-diagnostic.patch` (approximately 12.5 KiB; charger driver)
-- `oneplus-ups-driver-diagnostic.patch` (later diagnostic iteration; test status unconfirmed)
+The recorded guard design includes periodic 5-second sampling, a battery-voltage consistency check with a 150 mV maximum difference, and separate pack/internal temperature observations. These are design and development notes, not certified limits or independently audited code. The integrated diagnostic build reported five valid auxiliary channels and no auxiliary faults.
 
-**Source availability:** The exact artifacts are not included yet. They must be
-recovered from the original development machine and reviewed before publication.
-The DTS change alone does not reproduce the diagnostic kernel. No placeholder or
-guessed driver implementation is provided.
+The next phase is controlled implementation and validation of charging authorization. No later charging-enabled kernel test is available in this record.
+
+**Source availability:** The original patch files and the exact final source diff have not been recovered into this repository. See [patch inventory](../patches/README.md). Do not infer application order from the table or recreate safety-critical register programming from these notes.
 
 ## Reconstruct the baseline
 
@@ -78,8 +96,7 @@ If using an already patched source tree, do not apply the upstream patches again
 Record its exact source revision and preserve it as a baseline for a clean diff.
 
 After the original local patches have been recovered, inspect them and check each
-against the correct baseline with `git apply --check`. Do not blindly stack the two
-diagnostic versions: they may overlap or be successive revisions. The source
+against the correct baseline with `git apply --check`. Do not blindly stack the diagnostic versions or later guards: patches may overlap or supersede earlier changes. The source
 history is needed to determine the exact sequence. Review all DTS changes too.
 
 ## Build notes
@@ -160,14 +177,33 @@ current in µA and battery temperature in tenths of a degree Celsius.
 Verify driver-specific sign conventions and custom attributes against actual
 source before interpreting them.
 
+## Latest read-only UPS diagnostics
+
+The development build exposed additional attributes. Enumerate the actual power-supply directories rather than assuming a charger device name:
+
+```sh
+uname -r
+for p in /sys/class/power_supply/*; do
+    for f in capacity voltage_now current_now temp temp_internal health \
+        batif_status batif_terminal_missing batif_therm_or_id_missing \
+        charge_session_timeout aux_sensor_report ups_charge_requested \
+        ups_charge_authorized charging_enabled; do
+        [ -r "$p/$f" ] || continue
+        printf '%s: ' "$p/$f"
+        cat "$p/$f"
+    done
+done
+```
+
+Attribute availability depends on the exact patch revision. This is a read-only check, not a command to activate charging.
+
 ## Next steps
 
-1. Recover the original driver and DTS changes from the development machine.
+1. Recover the exact integrated driver, DTS and configuration changes from the development machine.
 2. Publish a reviewed patch series with exact base revision and preserved license notices.
-3. Reproduce the kernel build and boot image using documented commands.
-4. Validate input detection, fuel-gauge measurements and charging policy under
-   controlled conditions; verify actual battery current and voltage over time.
-5. Only claim charging or unattended operation after repeated safe hardware tests.
+3. Reproduce the latest kernel build, matching modules and boot image.
+4. Validate charging authorization, actual battery current, voltage, temperature, timeout, hysteresis, power-loss behavior and low-battery shutdown in controlled tests.
+5. Only claim charging or unattended UPS operation after repeated safe hardware tests.
 
 No private services, backups, device identifiers, credentials or service
 configuration are required for this project.
